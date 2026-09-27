@@ -103,6 +103,25 @@ function ClassSelect.new(playerGui, remote, callbacks)
 	return self
 end
 
+-- A custom class model imported into ReplicatedStorage.Assets.ClassModels, facing the camera.
+local function customModel(classId)
+	local assets = ReplicatedStorage:FindFirstChild("Assets")
+	local models = assets and assets:FindFirstChild("ClassModels")
+	local template = models and models:FindFirstChild(classId)
+	if not template then
+		return nil
+	end
+	local clone = template:Clone()
+	if clone:IsA("BasePart") then
+		local wrapper = Instance.new("Model")
+		clone.Parent = wrapper
+		wrapper.PrimaryPart = clone
+		clone = wrapper
+	end
+	clone:PivotTo(CFrame.Angles(0, math.rad(template:GetAttribute("Yaw") or 180), 0))
+	return clone
+end
+
 function ClassSelect:BuildCard(parent, index, class)
 	local card = new("Frame", {
 		Position = UDim2.fromOffset((index - 1) * (CARD.X + GAP), 96),
@@ -123,7 +142,8 @@ function ClassSelect:BuildCard(parent, index, class)
 	local camera = new("Camera", { FieldOfView = 30, Parent = viewport })
 	viewport.CurrentCamera = camera
 	local weapon = Items.Get("Weapons", "WoodenSword")
-	local model = Visuals.BuildMannequin(Items.Get("Outfits", class.Outfit), nil, weapon, class.WeaponStyle)
+	local model = customModel(class.Id)
+		or Visuals.BuildMannequin(Items.Get("Outfits", class.Outfit), nil, weapon, class.WeaponStyle)
 	model.Parent = viewport
 	local cframe, size = model:GetBoundingBox()
 	local distance = math.max(size.X, size.Y, size.Z) / (2 * math.tan(math.rad(15))) * 1.1

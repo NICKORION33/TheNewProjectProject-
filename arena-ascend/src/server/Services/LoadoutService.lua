@@ -18,6 +18,16 @@ local LoadoutService = {}
 
 local OUTFIT_TAG = "OutfitFX"
 local ARMOR_TAG = "ArmorFX"
+local SKIN_TAG = "ClassSkin"
+local SKIN_HEIGHT = 5.6 -- studs, roughly a default R15 avatar
+
+-- Custom class models imported in Studio live in ReplicatedStorage.Assets.ClassModels,
+-- named after the class (e.g. "Knight"). See README > Custom class models.
+local function classModelTemplate(classId)
+	local assets = ReplicatedStorage:FindFirstChild("Assets")
+	local models = assets and assets:FindFirstChild("ClassModels")
+	return models and models:FindFirstChild(classId)
+end
 
 local statsCache = {} -- [player] = computed stats
 
@@ -68,6 +78,9 @@ function LoadoutService.ApplyOutfit(player)
 		return
 	end
 	clearTagged(character, OUTFIT_TAG)
+	if character:GetAttribute("HasClassSkin") then
+		return -- the class model replaces the body, so outfit extras would float
+	end
 
 	-- Clothing textures would hide the body colours, so outfits replace them.
 	for _, inst in character:GetChildren() do
@@ -119,6 +132,9 @@ function LoadoutService.ApplyArmor(player)
 		return
 	end
 	clearTagged(character, ARMOR_TAG)
+	if character:GetAttribute("HasClassSkin") then
+		return
+	end
 	local torso = getTorso(character)
 	if torso then
 		local model = Visuals.BuildArmor(def, torso.Size)
@@ -129,6 +145,88 @@ function LoadoutService.ApplyArmor(player)
 	if root and def.Aura then
 		Visuals.AddRootEffects(root, { Aura = def.Aura }, ARMOR_TAG)
 	end
+end
+
+local function setBodyVisible(character, visible)
+	for _, part in character:GetDescendants() do
+		if not part:IsA("BasePart") and not part:IsA("Decal") then
+			continue
+		end
+		if part.Name == "HumanoidRootPart" or part:FindFirstAncestorOfClass("Tool") then
+			continue
+		end
+		local owner = part:FindFirstAncestorWhichIsA("Model")
+		if owner ~= character and not part:FindFirstAncestorOfClass("Accessory") then
+			continue -- our own cosmetic models
+		end
+		if visible then
+			if part:GetAttribute("SkinHidden") then
+				part.Transparency = part:GetAttribute("SkinHidden")
+				part:SetAttribute("SkinHidden", nil)
+			end
+		elseif part:GetAttribute("SkinHidden") == nil then
+			part:SetAttribute("SkinHidden", part.Transparency)
+			part.Transparency = 1
+		end
+	end
+end
+
+-- Swaps the character's look for the class's custom model, if one is installed.
+-- The real (invisible) body keeps doing movement and hit detection underneath.
+function LoadoutService.ApplyClassSkin(player)
+	local character = player.Character
+	local humanoid = character and character:FindFirstChildOfClass("Humanoid")
+	local root = character and character:FindFirstChild("HumanoidRootPart")
+	local data = DataService.Get(player)
+	if not (humanoid and root and data) then
+		return
+	end
+	clearTagged(character, SKIN_TAG)
+	local template = data.Class ~= "" and classModelTemplate(data.Class)
+	if not template then
+		character:SetAttribute("HasClassSkin", nil)
+		setBodyVisible(character, true)
+		return
+	end
+
+	local skin = template:Clone()
+	if skin:IsA("BasePart") then
+		local wrapper = Instance.new("Model")
+		skin.Parent = wrapper
+		wrapper.PrimaryPart = skin
+		skin = wrapper
+	end
+	skin.Name = SKIN_TAG
+	local _, size = skin:GetBoundingBox()
+	skin:ScaleTo(skin:GetScale() * (template:GetAttribute("Height") or SKIN_HEIGHT) / math.max(size.Y, 0.01))
+
+	-- Stand the model's bounding box on the ground under the root, facing forward.
+	local boxCFrame, boxSize = skin:GetBoundingBox()
+	local pivotFromBox = boxCFrame:Inverse() * skin:GetPivot()
+	local groundY = root.Position.Y - root.Size.Y / 2 - humanoid.HipHeight
+	local yaw = math.rad(template:GetAttribute("Yaw") or 180)
+	local target = root.CFrame * CFrame.new(0, groundY + boxSize.Y / 2 - root.Position.Y, 0) * CFrame.Angles(0, yaw, 0)
+	skin:PivotTo(target * pivotFromBox)
+
+	for _, part in skin:GetDescendants() do
+		if part:IsA("BasePart") then
+			part.Anchored = false
+			part.CanCollide = false
+			part.CanQuery = false
+			part.CanTouch = false
+			part.Massless = true
+			local weld = Instance.new("Weld")
+			weld.Part0 = root
+			weld.Part1 = part
+			weld.C0 = root.CFrame:Inverse() * part.CFrame
+			weld.Parent = part
+		end
+	end
+	skin.Parent = character
+	character:SetAttribute("HasClassSkin", true)
+	setBodyVisible(character, false)
+	clearTagged(character, OUTFIT_TAG)
+	clearTagged(character, ARMOR_TAG)
 end
 
 function LoadoutService.GiveWeapon(player)
@@ -306,6 +404,9 @@ function LoadoutService.Refresh(player, category)
 	if category == "Weapons" or category == "All" then
 		LoadoutService.GiveWeapon(player)
 	end
+	if category == "All" then
+		LoadoutService.ApplyClassSkin(player)
+	end
 	if category == "Armor" or category == "All" then
 		LoadoutService.ApplyArmor(player)
 	end
@@ -333,6 +434,7 @@ local function onCharacterAdded(player, character)
 		return
 	end
 	StatusService.Clear(humanoid)
+	LoadoutService.ApplyClassSkin(player)
 	LoadoutService.ApplyOutfit(player)
 	LoadoutService.ApplyArmor(player)
 	LoadoutService.GiveWeapon(player)
