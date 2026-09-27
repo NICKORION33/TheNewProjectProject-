@@ -28,7 +28,7 @@ function PartyUI.new(gui, remote, callbacks)
 
 	-- Member frames
 	self.Frames = new("Frame", {
-		Position = UDim2.fromOffset(16, 144),
+		Position = UDim2.new(0, 16, 0.5, -80),
 		Size = UDim2.fromOffset(230, 0),
 		AutomaticSize = Enum.AutomaticSize.Y,
 		BackgroundTransparency = 1,
@@ -39,7 +39,7 @@ function PartyUI.new(gui, remote, callbacks)
 	-- Party menu
 	local menu = new("Frame", {
 		AnchorPoint = Vector2.new(1, 0.5),
-		Position = UDim2.new(1, -16, 0.5, 0),
+		Position = UDim2.new(1, -104, 0.5, 0),
 		Size = UDim2.fromOffset(340, 440),
 		BackgroundColor3 = C.Panel,
 		Visible = false,
@@ -98,7 +98,7 @@ function PartyUI.new(gui, remote, callbacks)
 	-- Invite popup
 	self.Invite = new("Frame", {
 		AnchorPoint = Vector2.new(0.5, 0),
-		Position = UDim2.new(0.5, 0, 0, 60),
+		Position = UDim2.new(0.5, 0, 0, 250),
 		Size = UDim2.fromOffset(360, 104),
 		BackgroundColor3 = C.Panel,
 		Visible = false,

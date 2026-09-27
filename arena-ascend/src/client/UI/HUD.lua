@@ -39,9 +39,11 @@ function HUD.new(playerGui, callbacks)
 	self.Gui = gui
 
 	-- Profile card ---------------------------------------------------------
+	-- Bottom-left: Roblox's chat owns the top-left corner and the player list the top-right.
 	local card = new("Frame", {
 		Name = "ProfileCard",
-		Position = UDim2.fromOffset(16, 12),
+		AnchorPoint = Vector2.new(0, 1),
+		Position = UDim2.new(0, 16, 1, -16),
 		Size = UDim2.fromOffset(300, 78),
 		BackgroundColor3 = C.Panel,
 		BackgroundTransparency = 0.08,
@@ -105,7 +107,8 @@ function HUD.new(playerGui, callbacks)
 
 	-- Coins, gems + streak -------------------------------------------------
 	local row = new("Frame", {
-		Position = UDim2.fromOffset(16, 98),
+		AnchorPoint = Vector2.new(0, 1),
+		Position = UDim2.new(0, 16, 1, -102),
 		Size = UDim2.fromOffset(420, 36),
 		BackgroundTransparency = 1,
 		Parent = gui,
@@ -144,8 +147,8 @@ function HUD.new(playerGui, callbacks)
 
 	-- Side menu ------------------------------------------------------------
 	local menu = new("Frame", {
-		AnchorPoint = Vector2.new(0, 0.5),
-		Position = UDim2.new(0, 16, 0.5, 20),
+		AnchorPoint = Vector2.new(1, 0.5),
+		Position = UDim2.new(1, -16, 0.5, 0),
 		Size = UDim2.fromOffset(72, 3 * 72 + 2 * 10),
 		BackgroundTransparency = 1,
 		Parent = gui,
@@ -199,7 +202,7 @@ function HUD.new(playerGui, callbacks)
 	menuButton(3, "PARTY", "P", C.Good, Color3.fromRGB(50, 150, 90), callbacks.OnParty)
 	self.PointsBadge = new("Frame", {
 		AnchorPoint = Vector2.new(0.5, 0.5),
-		Position = UDim2.new(1, -4, 0, 4),
+		Position = UDim2.fromOffset(4, 4),
 		Size = UDim2.fromOffset(26, 26),
 		BackgroundColor3 = C.Danger,
 		Visible = false,
@@ -235,14 +238,14 @@ function HUD.new(playerGui, callbacks)
 
 	-- Kill feed --------------------------------------------------------------
 	self.Feed = new("Frame", {
-		AnchorPoint = Vector2.new(1, 0),
-		Position = UDim2.new(1, -16, 0, 12),
-		Size = UDim2.fromOffset(340, 220),
+		AnchorPoint = Vector2.new(0.5, 0),
+		Position = UDim2.new(0.5, 0, 0, 54),
+		Size = UDim2.fromOffset(420, 190),
 		BackgroundTransparency = 1,
 		Parent = gui,
 	}, {
 		new("UIListLayout", {
-			HorizontalAlignment = Enum.HorizontalAlignment.Right,
+			HorizontalAlignment = Enum.HorizontalAlignment.Center,
 			Padding = UDim.new(0, 6),
 			SortOrder = Enum.SortOrder.LayoutOrder,
 		}),
@@ -419,7 +422,7 @@ function HUD:Loot(data)
 	playSound("rbxasset://sounds/electronicpingshort.wav", 0.6)
 	local card = new("Frame", {
 		AnchorPoint = Vector2.new(0.5, 0),
-		Position = UDim2.new(0.5, 0, 0, 60),
+		Position = UDim2.new(0.5, 0, 0, 250),
 		Size = UDim2.fromOffset(320, 70),
 		BackgroundColor3 = C.Panel,
 		Parent = self.Gui,
