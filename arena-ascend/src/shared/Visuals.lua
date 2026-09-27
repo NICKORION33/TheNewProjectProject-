@@ -1,8 +1,39 @@
--- Builds the 3D look of every item out of plain parts, so the game needs no
--- uploaded meshes. The server uses these for real gear; the client uses them
--- for spinning previews in the shop.
+-- Builds the 3D look of every item. When the stylized equipment models are
+-- installed (ReplicatedStorage.Assets.Weapons / .Armor, imported from
+-- assets/models/*.glb) those are used; otherwise items are built from plain
+-- parts so the game still works with no imported assets. The server uses these
+-- for real gear; the client uses them for spinning previews in the shop.
+
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+
+local ItemRigs = require(script.Parent.ItemRigs)
 
 local Visuals = {}
+
+-- The imported mesh called `name` in ReplicatedStorage.Assets.<kind>, if installed.
+local function assetMesh(kind, name)
+	local assets = ReplicatedStorage:FindFirstChild("Assets")
+	local folder = assets and assets:FindFirstChild(kind)
+	local mesh = folder and folder:FindFirstChild(name, true)
+	return mesh and mesh:IsA("BasePart") and mesh or nil
+end
+
+-- A copy of an imported mesh, sized in studs and made purely cosmetic.
+local function meshCopy(template, size)
+	local mesh = template:Clone()
+	for _, child in mesh:GetChildren() do
+		if not child:IsA("SurfaceAppearance") then
+			child:Destroy()
+		end
+	end
+	mesh.Size = size
+	mesh.Anchored = false
+	mesh.CanCollide = false
+	mesh.CanQuery = false
+	mesh.CanTouch = false
+	mesh.Massless = true
+	return mesh
+end
 
 local GRIP_LENGTH = 1.1
 local GUARD_THICKNESS = 0.25
@@ -255,12 +286,57 @@ end
 
 local BUILDERS = { Blade = buildBlade, Staff = buildStaff, Bow = buildBow }
 
+-- Imported meshes run along +Y (width on X); the Handle convention runs along +Z
+-- (width on Y). This turns one into the other.
+local MESH_TO_HANDLE = CFrame.fromMatrix(Vector3.zero, Vector3.new(0, 1, 0), Vector3.new(0, 0, 1), Vector3.new(1, 0, 0))
+
+local function buildFromMesh(def, style, model)
+	local key = def.Id .. "_" .. style
+	local rig = ItemRigs.Weapons[key]
+	local template = rig and assetMesh("Weapons", key)
+	if not template then
+		return nil
+	end
+	-- The Handle sits on the grip point, so the grip offset along Z is 0.
+	local handle = newHandle(model, 1)
+	local mesh = meshCopy(template, rig.Size)
+	mesh.Name = "Mesh"
+	mesh.CFrame = MESH_TO_HANDLE * CFrame.new(-rig.Grip)
+	mesh.Parent = model
+	if def.Glow then
+		addGlow(mesh, def.Glow)
+		local base = Instance.new("Attachment")
+		base.Name = "TrailBase"
+		base.Position = rig.Base
+		base.Parent = mesh
+		local tip = Instance.new("Attachment")
+		tip.Name = "TrailTip"
+		tip.Position = rig.Tip
+		tip.Parent = mesh
+		local trail = Instance.new("Trail")
+		trail.Attachment0 = base
+		trail.Attachment1 = tip
+		trail.Color = ColorSequence.new(def.Glow)
+		trail.LightEmission = 1
+		trail.Lifetime = 0.18
+		trail.Transparency = NumberSequence.new(0.3, 1)
+		trail.Parent = mesh
+	end
+	if def.Particles then
+		sparkles(def.Glow or def.BladeColor, 14, 0.25).Parent = mesh
+	end
+	return handle, 0
+end
+
 -- Returns (model, gripZ). `style` is "Blade", "Staff" or "Bow" (the class's weapon style).
 -- The PrimaryPart is an invisible "Handle" running along Z; the business end points to +Z.
 function Visuals.BuildWeapon(def, style)
 	local model = Instance.new("Model")
 	model.Name = def.Name
-	local handle, gripZ = (BUILDERS[style] or buildBlade)(def, model)
+	local handle, gripZ = buildFromMesh(def, style, model)
+	if not handle then
+		handle, gripZ = (BUILDERS[style] or buildBlade)(def, model)
+	end
 	weldAll(model, handle)
 	return model, gripZ
 end
@@ -465,26 +541,93 @@ function Visuals.AttachTo(model, anchor, parent)
 	model.Parent = parent
 end
 
+-- Puts `def`'s armor on `body` (a character, mob rig or mannequin) and returns the
+-- container Model, parented to `parent` and named `tag`. Imported armor has a piece
+-- per R15 body part, each stretched to fit that part; otherwise part-built plates
+-- go on the torso (which also covers R6 bodies).
+function Visuals.AttachArmor(def, body, parent, tag)
+	local container = Instance.new("Model")
+	container.Name = tag
+	local pieces = ItemRigs.Armor[def.Id]
+	local attached = false
+	if pieces then
+		for partName, rig in pieces do
+			local template = assetMesh("Armor", def.Id .. "_" .. partName)
+			local bodyPart = body:FindFirstChild(partName)
+			local reference = ItemRigs.ReferenceSizes[partName]
+			if template and bodyPart and bodyPart:IsA("BasePart") and reference then
+				local ratio = bodyPart.Size / reference
+				local piece = meshCopy(template, rig.Size * ratio)
+				piece.Name = partName
+				piece.CFrame = bodyPart.CFrame * CFrame.new(rig.Offset * ratio)
+				piece.Anchored = bodyPart.Anchored
+				local weld = Instance.new("Weld")
+				weld.Part0 = bodyPart
+				weld.Part1 = piece
+				weld.C0 = bodyPart.CFrame:Inverse() * piece.CFrame
+				weld.Parent = piece
+				piece.Parent = container
+				attached = true
+			end
+		end
+	end
+	if not attached then
+		local torso = body:FindFirstChild("UpperTorso") or body:FindFirstChild("Torso")
+		if torso then
+			local plates = Visuals.BuildArmor(def, torso.Size)
+			for _, p in plates:GetDescendants() do
+				if p:IsA("BasePart") then
+					p.CFrame = torso.CFrame * p.CFrame
+					p.Anchored = torso.Anchored
+					p.Parent = container
+				end
+			end
+			weldAll(container, torso)
+			plates:Destroy()
+		end
+	end
+	container.Parent = parent
+	return container
+end
+
 ---------------------------------------------------------------------------
 -- Shop previews
 ---------------------------------------------------------------------------
 
--- A blocky stand-in character wearing an outfit, optional armor, and an optional weapon.
+-- Roblox's default blocky R15 body, standing with its feet at y = 0.
+local MANNEQUIN = {
+	{ "LeftFoot", -0.5, 0.15 }, { "RightFoot", 0.5, 0.15 },
+	{ "LeftLowerLeg", -0.5, 0.8965 }, { "RightLowerLeg", 0.5, 0.8965 },
+	{ "LeftUpperLeg", -0.5, 2.1015 }, { "RightUpperLeg", 0.5, 2.1015 },
+	{ "LowerTorso", 0, 2.91 }, { "UpperTorso", 0, 3.91 }, { "Head", 0, 5.31 },
+	{ "LeftUpperArm", -1.5, 4.1255 }, { "RightUpperArm", 1.5, 4.1255 },
+	{ "LeftLowerArm", -1.5, 3.015 }, { "RightLowerArm", 1.5, 3.015 },
+	{ "LeftHand", -1.5, 2.339 }, { "RightHand", 1.5, 2.339 },
+}
+
+-- A blocky R15 stand-in wearing an outfit, optional armor, and an optional weapon.
 function Visuals.BuildMannequin(outfitDef, armorDef, weaponDef, weaponStyle)
 	local model = Instance.new("Model")
 	model.Name = "Mannequin"
 	local skin = Color3.fromRGB(234, 196, 160)
-	local function limb(name, size, cf, color)
-		local p = part({ Name = name, Size = size, CFrame = cf, Color = color, Anchored = true })
-		p.Parent = model
-		return p
+	for _, entry in MANNEQUIN do
+		local name, x, y = entry[1], entry[2], entry[3]
+		local color = outfitDef.Primary
+		if name == "Head" or name:find("Hand") then
+			color = skin
+		elseif name:find("Leg") or name:find("Foot") or name == "LowerTorso" then
+			color = outfitDef.Secondary
+		end
+		part({
+			Name = name,
+			Size = ItemRigs.ReferenceSizes[name],
+			CFrame = CFrame.new(x, y, 0),
+			Color = color,
+			Anchored = true,
+			Parent = model,
+		})
 	end
-	local torso = limb("Torso", Vector3.new(2, 2, 1), CFrame.new(0, 3, 0), outfitDef.Primary)
-	local head = limb("Head", Vector3.new(1.2, 1.2, 1.2), CFrame.new(0, 4.6, 0), skin)
-	limb("LeftArm", Vector3.new(1, 2, 1), CFrame.new(-1.5, 3, 0), outfitDef.Primary)
-	limb("RightArm", Vector3.new(1, 2, 1), CFrame.new(1.5, 3, 0), outfitDef.Primary)
-	limb("LeftLeg", Vector3.new(1, 2, 1), CFrame.new(-0.5, 1, 0), outfitDef.Secondary)
-	limb("RightLeg", Vector3.new(1, 2, 1), CFrame.new(0.5, 1, 0), outfitDef.Secondary)
+	local torso, head = model.UpperTorso, model.Head
 	model.PrimaryPart = torso
 
 	local function place(sub, anchor)
@@ -497,7 +640,7 @@ function Visuals.BuildMannequin(outfitDef, armorDef, weaponDef, weaponStyle)
 		sub.Parent = model
 	end
 	if armorDef then
-		place(Visuals.BuildArmor(armorDef, torso.Size), torso)
+		Visuals.AttachArmor(armorDef, model, model, "Armor")
 	end
 	local extras = Visuals.BuildOutfitExtras(outfitDef, torso.Size, head.Size)
 	if extras.Torso then
@@ -509,7 +652,7 @@ function Visuals.BuildMannequin(outfitDef, armorDef, weaponDef, weaponStyle)
 	if weaponDef then
 		local weapon, gripZ = Visuals.BuildWeapon(weaponDef, weaponStyle)
 		-- Held upright in the right hand, business end up.
-		weapon:PivotTo(CFrame.new(1.5, 2.1, -0.6) * CFrame.Angles(-math.rad(80), 0, 0) * CFrame.new(0, 0, -gripZ))
+		weapon:PivotTo(CFrame.new(1.5, 2.2, -0.6) * CFrame.Angles(-math.rad(80), 0, 0) * CFrame.new(0, 0, -gripZ))
 		for _, p in weapon:GetDescendants() do
 			if p:IsA("BasePart") then
 				p.Anchored = true

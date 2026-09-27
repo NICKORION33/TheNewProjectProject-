@@ -126,12 +126,7 @@ function LoadoutService.ApplyArmor(player)
 	if character:GetAttribute("HasClassSkin") then
 		return
 	end
-	local torso = getTorso(character)
-	if torso then
-		local model = Visuals.BuildArmor(def, torso.Size)
-		model.Name = ARMOR_TAG
-		Visuals.AttachTo(model, torso, character)
-	end
+	Visuals.AttachArmor(def, character, character, ARMOR_TAG)
 	local root = character:FindFirstChild("HumanoidRootPart")
 	if root and def.Aura then
 		Visuals.AddRootEffects(root, { Aura = def.Aura }, ARMOR_TAG)

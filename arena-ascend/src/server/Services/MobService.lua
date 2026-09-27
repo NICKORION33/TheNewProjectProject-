@@ -124,9 +124,8 @@ local function buildMob(def, spawnCFrame)
 	end
 	attachWeapon(model, def)
 	local armorDef = def.Armor and Items.Get("Armor", def.Armor)
-	local torso = model:FindFirstChild("UpperTorso")
-	if armorDef and torso then
-		Visuals.AttachTo(Visuals.BuildArmor(armorDef, torso.Size), torso, model)
+	if armorDef then
+		Visuals.AttachArmor(armorDef, model, model, "Armor")
 	end
 	if def.Boss then
 		local root = model:FindFirstChild("HumanoidRootPart")
