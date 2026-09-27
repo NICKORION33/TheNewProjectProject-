@@ -204,7 +204,7 @@ function HUD.new(playerGui, callbacks)
 		AnchorPoint = Vector2.new(0.5, 0.5),
 		Position = UDim2.fromOffset(4, 4),
 		Size = UDim2.fromOffset(26, 26),
-		BackgroundColor3 = C.Danger,
+		BackgroundColor3 = Color3.fromRGB(217, 58, 74), -- darker than Danger so white text stays readable
 		Visible = false,
 		Parent = hero,
 	}, { Theme.round(), Theme.stroke(C.Ink, 2) })

@@ -429,15 +429,18 @@ end
 -- State
 ---------------------------------------------------------------------------
 
-local function statsFor(category, def)
+local function statsFor(category, def, style)
 	if category == "Weapons" then
-		return {
+		local lines = {
 			{ "Weapon damage", tostring(def.Damage) },
 			{ "Attacks / sec", string.format("%.1f", 1 / def.Cooldown) },
-			{ "Melee reach", string.format("%g studs", def.Range) },
 			{ "Crit chance", Format.Percent(def.Crit) },
 			{ "Note", "Abilities scale with it" },
 		}
+		if style == "Blade" then
+			table.insert(lines, 3, { "Melee reach", string.format("%g studs", def.Range) })
+		end
+		return lines
 	elseif category == "Armor" then
 		return {
 			{ "Bonus health", "+" .. def.Health },
@@ -625,7 +628,7 @@ function Shop:Refresh()
 	local tag = SOURCE_TAGS[def.Source] or (def.Price == 0 and "STARTER" or ("LV " .. def.Level))
 	self.DetailRarity.Text = def.Rarity:upper() .. "  -  " .. tag
 	self.DetailRarity.TextColor3 = rarity.Color
-	self:ShowLines(statsFor(category, def))
+	self:ShowLines(statsFor(category, def, self.Style))
 
 	local key = category .. def.Id .. self.Style
 	if self.DetailKey ~= key then
