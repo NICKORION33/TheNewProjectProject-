@@ -16,6 +16,7 @@ local Items = require(Shared:WaitForChild("Items"))
 local Products = require(Shared:WaitForChild("Products"))
 local Visuals = require(Shared:WaitForChild("Visuals"))
 local Theme = require(script.Parent.Theme)
+local ClassModelPreview = require(script.Parent.ClassModelPreview)
 
 local C = Theme.Colors
 local new, label = Theme.new, Theme.label
@@ -39,7 +40,8 @@ local function previewModel(category, def, style)
 	elseif category == "Armor" then
 		return Visuals.BuildMannequin(Items.Get("Outfits", "Recruit"), def), Vector3.new(0.55, 0.15, -1)
 	end
-	return Visuals.BuildMannequin(def, nil), Vector3.new(0.55, 0.15, -1)
+	local signature = def.Source == "Class" and ClassModelPreview.Clone(def.Class)
+	return signature or Visuals.BuildMannequin(def, nil), Vector3.new(0.55, 0.15, -1)
 end
 
 local function frameCamera(camera, model, direction)

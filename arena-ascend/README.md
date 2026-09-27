@@ -88,26 +88,45 @@ Fairness rules:
 
 Products left at `0` still show in the shop but won't open a purchase prompt. Receipts are handled in `PremiumService`: a purchase is confirmed only after it saves, and receipt IDs are stored so a purchase is never granted twice.
 
-## Custom class models
+## Class models
 
-Any class can swap its part-built look for an imported 3D model. The Knight ships
-with one: `assets/models/Knight.glb` (16.7k triangles, 1024px PBR textures,
-already optimized to fit Roblox's 20k-triangle mesh limit).
+Each class has a stylized, rigged signature model:
 
-1. In Studio: **File > Import 3D** and choose `assets/models/Knight.glb`.
-2. Move the imported model to **ReplicatedStorage > Assets > ClassModels** (create the
-   two folders) and rename it `Knight` (the class Id).
-3. Play. Knights now wear the model, and the class-select card shows it.
+![Class models at rest and posed through their skeletons](assets/previews/class-models.png)
 
-Optional attributes on the model: `Height` (studs, default 5.6) and `Yaw`
-(degrees, default 180 - change it if the model faces backwards).
+| File | Use |
+| --- | --- |
+| `assets/models/<Class>.glb` | Import into the game. Holds 15 meshes named after the R15 body parts (plus an invisible `HumanoidRootPart`). |
+| `assets/models/rigged/<Class>_Rigged.glb` | The same model skinned to a 17-bone R15 skeleton, for Blender, Moon Animator or avatar work. |
 
-How it works: the model is welded to the character and the normal body is made
-invisible underneath, so movement, hitboxes and abilities are unchanged. Outfit
-extras and armor plates are hidden while a class model is worn (their stats still
-apply). The model is a static mesh with no skeleton, so it glides rather than
-walks. For walking and swinging animations, rig it first (Meshy's auto-rigging, or
-Studio's **Avatar > Auto Setup**) and import the rigged version.
+The Knight is your Meshy model: optimized to 16k triangles, cut at the joints into
+R15 parts, with its sword blade removed so the equipped weapon shows instead. The
+Ranger, Mage, Rogue and Cleric are generated in the same blocky style. Rebuild
+them all with `tools/build_class_models.py` (Blender 4.2 Python):
+`python build_class_models.py -- <out dir> <optimized Meshy knight .glb>`.
+
+### Installing them
+
+1. In Studio, **File > Import 3D** and choose each `assets/models/<Class>.glb`.
+   Keep the default settings and don't rotate the result.
+2. Create folders **ReplicatedStorage > Assets > ClassModels**. Move each imported model
+   in and rename it to its class Id: `Knight`, `Ranger`, `Mage`, `Rogue`, `Cleric`.
+3. Press Play. Players wearing their class's signature outfit (the free class outfit,
+   equipped automatically when they pick the class) become that model.
+
+### How it works in game
+
+- `ClassModelService` swaps the player's 15 body parts for the model's parts with
+  `Humanoid:ReplaceBodyPartR15`. It then rebuilds the R15 Motor6D joints from
+  `Shared/ClassRigs.lua`, which holds the joint positions exported by the build script.
+- Roblox's default walk, run, jump, climb and tool-slash animations all play on it.
+  Hitboxes, abilities and weapons work as usual.
+- Switching to any other outfit in the Armory restores the player's own avatar, hats
+  included. Armor plates and outfit extras are hidden while a signature model is worn;
+  their stats still apply.
+- A model that isn't split into R15 parts, such as a single-mesh import, still works.
+  It is welded on as a static costume that moves but doesn't animate its limbs.
+  Optional attributes: `Height` (studs, default 5.6) and `Yaw` (degrees, default 0).
 
 ## Code map
 
@@ -125,7 +144,7 @@ src/shared/            (ReplicatedStorage.Shared)
 src/server/            (ServerScriptService.Server)
   Main.server.lua      builds the map, starts services
   World/MapBuilder.lua Plaza, Pit, Training Grounds, Wilds, lighting
-  Services/            Data, Status, Party, Loadout, Level, Reward, Combat,
+  Services/            Data, Status, Party, Loadout, ClassModel, Level, Reward, Combat,
                        Ability, Progression, Shop, Premium, Grind, Mob
 src/client/            (StarterPlayerScripts.Client)
   Main.client.lua      wires everything together
